@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from datetime import datetime, timedelta
-from models import Role, Login, User, Support_Request, RoleEnum, UserStatus
+from models import *
 from extensions import get_db
 from auth import get_current_user, require_role
 from pydantic import BaseModel, EmailStr
@@ -126,15 +126,70 @@ def get_support_requests(db: Session = Depends(get_db), user=Depends(get_current
 #     db.commit()
 #     return {"message": "Response sent successfully."}
 
-@admin_router.patch("/support_request/{request_id}/close")
+@admin_router.patch("/support_request/{request_id}/mark_resolved")
 def close_support_request(request_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     support_request = db.query(Support_Request).filter(Support_Request.id == request_id).first()
     if not support_request:
         raise HTTPException(status_code=404, detail="Support request not found")
     
-    support_request.status = "closed"
+    support_request.status = "resolved"
     db.commit()
     return {"message": "Support request closed successfully."}
+
+@admin_router.get("/chat/sessions")
+def admin_get_all_sessions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Ensure admin role
+    if current_user["role_id"] != 1:
+        raise HTTPException(status_code=403, detail="Admins only")
+
+    sessions = (
+        db.query(ChatSession, User)
+        .join(User, ChatSession.user_id == User.id)
+        .all()
+    )
+
+    result = []
+    for session, user in sessions:
+        last_msg = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.session_id == session.id)
+            .order_by(ChatMessage.created_at.desc())
+            .first()
+        )
+
+        result.append({
+            "session_id": session.session_uuid,
+            "title": session.title or "New Conversation",
+            "user_id": user.id,
+            "user_name": f"{user.first_name} {user.last_name}",
+            "last_updated": (
+                last_msg.created_at.isoformat() if last_msg else session.created_at.isoformat()
+            ),
+        })
+
+    return result
+
+
+@admin_router.get("/chat/messages/{session_id}")
+def admin_get_chat_messages(session_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Ensure admin role
+    if current_user["role_id"] != 1:
+        raise HTTPException(status_code=403, detail="Admins only")
+
+    session = db.query(ChatSession).filter(
+        ChatSession.session_uuid == session_id).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at)
+        .all()
+    )
+
+    return messages
 
 def format_time_ago(dt: datetime):
     """Return human-readable 'x min ago' style string."""

@@ -1,20 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Progress } from './ui/progress';
+import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Label } from './ui/label';
-import { User, Calendar, MessageSquare, Award, Heart, Smile, Meh, Frown, Laugh, Edit, MessageCircleQuestion  } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { User, Clock, Calendar, MessageSquare, Award, Heart, Check, MoreVertical, Smile, Meh, Frown, Laugh, Edit, MessageCircleQuestion, HelpCircle } from 'lucide-react';
 
 export const UserProfile = () => {
 
   const { user, refreshUser } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
+  const [supportRequests, setSupportRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -24,13 +35,45 @@ export const UserProfile = () => {
   const [queryData, setQueryData] = useState({
     title: '',
     description: '',
+    priority: '',
   });
-
   const stats = [
     { label: 'Total Sessions', value: user?.sessionsCount || 0, icon: MessageSquare, color: 'text-teal-500' },
     { label: 'Days Active', value: user?.daysActive || 0, icon: Calendar, color: 'text-cyan-500' },
     { label: 'Achievements', value: 8, icon: Award, color: 'text-emerald-500' },
   ];
+  const fetchUserData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const [requestsRes] = await Promise.all([
+        fetch("http://127.0.0.1:8000/api/v1/user/support_requests", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          }
+        }),
+      ]);
+
+      if (!requestsRes.ok) {
+        throw new Error("Failed to fetch admin data");
+      }
+
+      const [requestsData] = await Promise.all([
+        requestsRes.json(),
+      ]);
+
+      setSupportRequests(requestsData.support_requests || []);
+    } catch (err) {
+      console.error("Error fetching admin data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    fetchUserData();
+  }, []);
 
   const getMoodIcon = (mood: string) => {
     switch (mood.toLowerCase()) {
@@ -46,7 +89,6 @@ export const UserProfile = () => {
         return <Smile className="w-6 h-6 text-white" />;
     }
   };
-
   const moodData = [
     { day: 'Mon', mood: 'Good', score: 80 },
     { day: 'Tue', mood: 'Great', score: 90 },
@@ -54,13 +96,11 @@ export const UserProfile = () => {
     { day: 'Thu', mood: 'Good', score: 75 },
     { day: 'Fri', mood: 'Great', score: 85 },
   ];
-
   const goals = [
     { title: 'Daily Meditation', progress: 70, target: '10 minutes/day' },
     { title: 'Journal Entries', progress: 50, target: '5 entries/week' },
     { title: 'Sleep Quality', progress: 85, target: '7-8 hours/night' },
   ];
-
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -70,14 +110,12 @@ export const UserProfile = () => {
       day: "numeric",
     });
   };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
-
   const handleEditSave = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -110,7 +148,6 @@ export const UserProfile = () => {
       console.error("Error updating profile:", error);
     }
   };
-
   const handleEditCancel = () => {
     // Reset form data to original values
     setFormData({
@@ -121,8 +158,13 @@ export const UserProfile = () => {
     });
     setIsEditDialogOpen(false);
   };
-
-const handleQuerySave = async () => {
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setQueryData({
+      ...queryData,
+      [e.target.name]: e.target.value,
+    });
+  };
+  const handleQuerySave = async () => {
     try {
       const token = localStorage.getItem("token");
 
@@ -134,7 +176,8 @@ const handleQuerySave = async () => {
         },
         body: JSON.stringify({
           title: queryData.title,
-          description: queryData.description
+          description: queryData.description,
+          priority: queryData.priority
         }),
       });
 
@@ -147,21 +190,40 @@ const handleQuerySave = async () => {
       console.log("Updated:", data);
 
       setIsQueryDialogOpen(false);
+      fetchUserData();
       await refreshUser();
 
     } catch (error) {
       console.error("Error updating query:", error);
     }
   };
-
   const handleQueryCancel = () => {
     // Reset form data to original values
     setQueryData({
       title: '',
-      description: ''
+      description: '',
+      priority: ''
     });
     setIsQueryDialogOpen(false);
-  };  
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-600 border-red-200 bg-red-50';
+      case 'medium': return 'text-orange-600 border-orange-200 bg-orange-50';
+      case 'low': return 'text-gray-600 border-gray-200 bg-gray-50';
+      default: return 'text-teal-600 border-teal-200 bg-teal-50';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open': return 'text-cyan-600 border-cyan-200';
+      case 'in-progress': return 'text-amber-600 border-amber-200';
+      case 'resolved': return 'text-emerald-600 border-emerald-200';
+      default: return 'text-gray-600 border-gray-200';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-50 p-6">
@@ -268,6 +330,72 @@ const handleQuerySave = async () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tabs Section */}
+        <Tabs defaultValue="support" className="w-full">
+          <TabsList className="bg-white border border-teal-100">
+            <TabsTrigger value="support" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white">
+              <HelpCircle className="w-4 h-4 mr-2" />
+              Support
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Support Tab */}
+          <TabsContent value="support" className="space-y-4">
+            <Card className="border-teal-100">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-teal-900">Support Requests</CardTitle>
+                    <CardDescription className="text-teal-600">Manage user support tickets and inquiries</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="text-cyan-600 border-cyan-200">
+                      {supportRequests.filter(req => req.status === "resolved").length} Resolved
+                    </Badge>
+                    <Badge variant="outline" className="text-amber-600 border-amber-200">
+                      {supportRequests.filter(req => req.status === "open").length} In Progress
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {supportRequests.map((request) => (
+                    <Card key={request.id} className="border-teal-100 hover:border-teal-200 transition-colors">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className="text-teal-900">{request.title}</h4>
+                                <Badge variant="outline" className={getPriorityColor(request.priority)}>
+                                  {request.priority}
+                                </Badge>
+                                <Badge variant="outline" className={getStatusColor(request.status)}>
+                                  {request.status}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-teal-600">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatDate(request.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-sm text-teal-700 bg-teal-50 p-3 rounded-lg border border-teal-100">
+                            {request.description}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Edit Profile Dialog */}
@@ -360,7 +488,7 @@ const handleQuerySave = async () => {
                 id="title"
                 name="title"
                 value={queryData.title}
-                onChange={handleInputChange}
+                onChange={handleQueryChange}
                 className="border-teal-200 focus:border-teal-500 focus:ring-teal-500"
                 placeholder="Enter query title"
               />
@@ -373,10 +501,40 @@ const handleQuerySave = async () => {
                 id="description"
                 name="description"
                 value={queryData.description}
+                onChange={handleQueryChange}
                 className="border-teal-200 focus:border-teal-500 focus:ring-teal-500"
                 placeholder="Enter query description"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="priority" className="text-teal-900">
+                Priority
+              </Label>
+              <div className="w-48">
+                <Select
+                  value={queryData.priority}
+                  onValueChange={(val) =>
+                    setQueryData({ ...queryData, priority: val })}
+                  defaultValue="medium">
+                  <SelectTrigger className="w-full border border-teal-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-teal-300 rounded-lg shadow-lg" style={{ width: "450px" }}>
+                    <SelectItem value="high" style={{ paddingLeft: "10px", height: "30px" }}>
+                      High
+                    </SelectItem>
+                    <SelectItem value="medium" style={{ paddingLeft: "10px", height: "30px" }}>
+                      Medium
+                    </SelectItem>
+                    <SelectItem value="low" style={{ paddingLeft: "10px", height: "30px" }}>
+                      Low
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+
+              </div>
             </div>
           </div>
           <DialogFooter>

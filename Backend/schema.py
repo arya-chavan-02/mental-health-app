@@ -14,7 +14,11 @@ class EditProfileRequest(ORMBase):
     email: EmailStr
     phone: str
     
-
+class CreateQuery(ORMBase):
+    title: str
+    description: str
+    priority: str
+    
 class ChangePasswordRequest(ORMBase):
     old_password: str
     new_password: str

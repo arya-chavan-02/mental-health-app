@@ -40,6 +40,10 @@ export const AdminProfile = () => {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [supportRequests, setSupportRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chatSessions, setChatSessions] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [selectedSession, setSelectedSession] = useState(null);
+
 
   const [stats, setStats] = useState({
     total_users: 0,
@@ -78,7 +82,15 @@ export const AdminProfile = () => {
       trend: "+3%",
     },
   ];
-
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
   // const allUsers = [
   //   { id: 1, name: 'Emma Wilson', email: 'emma.w@email.com', status: 'active', sessions: 15, joinedDate: 'Jan 15, 2024', lastActive: '2 min ago' },
   //   { id: 2, name: 'James Brown', email: 'james.b@email.com', status: 'active', sessions: 8, joinedDate: 'Feb 22, 2024', lastActive: '5 min ago' },
@@ -146,7 +158,7 @@ export const AdminProfile = () => {
       try {
         const token = localStorage.getItem("token");
 
-        const [usersRes, requestsRes, statsRes] = await Promise.all([
+        const [usersRes, requestsRes, statsRes, chatSessionsRes] = await Promise.all([
           fetch(`${API_BASE_URL}/users`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -156,21 +168,32 @@ export const AdminProfile = () => {
           fetch(`${API_BASE_URL}/stats`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          fetch(`${API_BASE_URL}/chat/sessions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+
         ]);
 
-        if (!usersRes.ok || !requestsRes.ok) {
+
+        if (!usersRes.ok || !requestsRes.ok || !chatSessionsRes.ok) {
           throw new Error("Failed to fetch admin data");
         }
 
-        const [usersData, requestsData, statsData] = await Promise.all([
+        const [usersData, requestsData, statsData, chatReqData] = await Promise.all([
           usersRes.json(),
           requestsRes.json(),
           statsRes.json(),
+          chatSessionsRes.json(),
         ]);
 
         setAllUsers(usersData);
         setSupportRequests(requestsData);
         setStats(statsData);
+        setChatSessions(
+          Array.isArray(chatReqData)
+            ? chatReqData
+            : chatReqData.sessions || []
+        );
       } catch (err) {
         console.error("Error fetching admin data:", err);
       } finally {
@@ -179,6 +202,23 @@ export const AdminProfile = () => {
     };
     fetchAdminData();
   }, []);
+
+  const fetchMessages = async (sessionId) => {
+  const token = localStorage.getItem("token");
+  setSelectedSession(sessionId);
+
+  const res = await fetch(`${API_BASE_URL}/chat/messages/${sessionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await res.json();
+  console.log("CHAT MESSAGES RAW:", data);
+
+  // FIX: support different API formats
+  setChatMessages(Array.isArray(data)
+            ? data
+            : data.messages || []);
+};
 
   const filteredUsers = allUsers.filter(u =>
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -263,10 +303,39 @@ export const AdminProfile = () => {
     }
   };
 
+  const handleMarkResolved = async (requestId: number) => {
+    const token = localStorage.getItem("token");
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/support_request/${requestId}/mark_resolved`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to mark request as resolved");
+
+      // Update UI instantly
+      setSupportRequests((prev) =>
+        prev.map((req) =>
+          req.id === requestId ? { ...req, status: "resolved" } : req
+        )
+      );
+    } catch (err) {
+      console.error("Error resolving ticket:", err);
+      alert("Failed to mark request as resolved. Please try again.");
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'text-red-600 border-red-200 bg-red-50';
-      case 'high': return 'text-orange-600 border-orange-200 bg-orange-50';
+      case 'high': return 'text-red-600 border-red-200 bg-red-50';
+      case 'medium': return 'text-orange-600 border-orange-200 bg-orange-50';
       case 'low': return 'text-gray-600 border-gray-200 bg-gray-50';
       default: return 'text-teal-600 border-teal-200 bg-teal-50';
     }
@@ -338,6 +407,11 @@ export const AdminProfile = () => {
             <TabsTrigger value="support" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white">
               <HelpCircle className="w-4 h-4 mr-2" />
               Support
+            </TabsTrigger>
+            <TabsTrigger
+              value="monitor" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Monitor Chats
             </TabsTrigger>
           </TabsList>
 
@@ -456,10 +530,10 @@ export const AdminProfile = () => {
                   </div>
                   <div className="flex gap-2">
                     <Badge variant="outline" className="text-cyan-600 border-cyan-200">
-                      3 Open
+                      {supportRequests.filter(req => req.status === "resolved").length} Resolved
                     </Badge>
                     <Badge variant="outline" className="text-amber-600 border-amber-200">
-                      1 In Progress
+                      {supportRequests.filter(req => req.status === "open").length} In Progress
                     </Badge>
                   </div>
                 </div>
@@ -473,7 +547,7 @@ export const AdminProfile = () => {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <h4 className="text-teal-900">{request.subject}</h4>
+                                <h4 className="text-teal-900">{request.title}</h4>
                                 <Badge variant="outline" className={getPriorityColor(request.priority)}>
                                   {request.priority}
                                 </Badge>
@@ -484,17 +558,17 @@ export const AdminProfile = () => {
                               <div className="flex items-center gap-3 text-sm text-teal-600">
                                 <span className="flex items-center gap-1">
                                   <User className="w-3 h-3" />
-                                  {request.user}
+                                  {allUsers.filter(user => user.id === request.user_id)[0]?.name}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
-                                  {request.timestamp}
+                                  {formatDate(request.created_at)}
                                 </span>
                               </div>
                             </div>
                           </div>
                           <p className="text-sm text-teal-700 bg-teal-50 p-3 rounded-lg border border-teal-100">
-                            {request.message}
+                            {request.description}
                           </p>
                           <div className="flex gap-2 pt-2">
                             <Button
@@ -504,23 +578,17 @@ export const AdminProfile = () => {
                               <MessageSquare className="w-3 h-3 mr-1" />
                               Respond
                             </Button>
-                            {request.status !== 'resolved' && (
+                            {request.status !== "resolved" && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => handleMarkResolved(request.id)}
                               >
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 Mark Resolved
                               </Button>
                             )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-teal-200 text-teal-700 hover:bg-teal-50"
-                            >
-                              View Details
-                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -530,16 +598,75 @@ export const AdminProfile = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Monitor Chats Tab */}
+          <TabsContent value="monitor" className="space-y-4">
+            <Card className="border-teal-100">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-teal-900">Chat Monitoring</CardTitle>
+                    <CardDescription className="text-teal-600">
+                      View user chat sessions and monitor conversations in real time
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                  {/* SESSIONS LIST */}
+                  <div className="border rounded-lg p-3 bg-white h-[600px] overflow-auto">
+                    <h3 className="text-teal-900 mb-3 font-medium">User Sessions</h3>
+
+                    {chatSessions.map((s) => (
+                      <div
+                        key={s.session_id}
+                        className={`p-3 border rounded-lg mb-2 cursor-pointer hover:bg-teal-50 ${selectedSession === s.session_id ? "bg-teal-100" : ""
+                          }`}
+                        onClick={() => fetchMessages(s.session_id)}
+                      >
+                        <p className="text-teal-900 font-medium">{s.title}</p>
+                        <p className="text-xs text-teal-600">
+                          Last Updated: {formatDate(s.last_updated)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          User: {s.user_name} (ID: {s.user_id})
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CHAT MESSAGES VIEW */}
+                  <div className="lg:col-span-2 border rounded-lg p-3 bg-white h-[600px] overflow-auto">
+                    <h3 className="text-teal-900 mb-3 font-medium">Chat Messages</h3>
+
+                    {chatMessages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`p-3 rounded-lg mb-2 border ${m.role === "user"
+                          ? "bg-teal-50 border-teal-200"
+                          : "bg-gray-50 border-gray-200"
+                          }`}
+                      >
+                        <p className="font-semibold">
+                          {m.role.toUpperCase()} — {m.emotion ? m.emotion : "neutral"}
+                        </p>
+                        <p className="text-sm text-gray-700">{m.content}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatDate(m.created_at)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
         </Tabs>
       </div>
     </div >
   );
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-teal-600">
-        Loading admin dashboard...
-      </div>
-    );
-  }
 };

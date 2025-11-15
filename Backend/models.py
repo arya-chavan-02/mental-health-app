@@ -52,7 +52,7 @@ class RequestStatus(enum.Enum):
 
 class RequestPriority(enum.Enum):
     low = "low"
-    normal = "normal"
+    medium = "medium"
     high = "high"
 
 class Role(SQLBaseModel):
@@ -80,8 +80,8 @@ class Login(SQLBaseModel):
     user = relationship("User", back_populates="login")
 
     session_count = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_login = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime, default=datetime.now(ist))
+    last_login = Column(DateTime, onupdate=datetime.now(ist))
     days_active = Column(Integer, default=0)
 
     def __repr__(self):
@@ -98,8 +98,8 @@ class User(SQLBaseModel):
     phone_number = Column(String(15), nullable=True)
     user_status = Column(Enum(UserStatus), default=UserStatus.active, nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(DateTime, default=datetime.now(ist))
+    updated_at = Column(DateTime, default=datetime.now(ist))
 
     login = relationship("Login", back_populates="user", uselist=False)
 
@@ -162,8 +162,8 @@ class Support_Request(SQLBaseModel):
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     status = Column(Enum(RequestStatus), default=RequestStatus.open, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    priority = Column(Enum(RequestPriority), default=RequestPriority.normal, nullable=False)
+    created_at = Column(DateTime, default=datetime.now(ist))
+    priority = Column(Enum(RequestPriority), default=RequestPriority.medium, nullable=False)
 
     user = relationship("User", back_populates="support_requests")
 

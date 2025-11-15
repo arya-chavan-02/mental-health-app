@@ -1,12 +1,12 @@
 from fastapi import HTTPException, Request
-from models import Role, Login, User, Support_Request, UserStatus
+from models import *
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import *
 from extensions import get_db
-from schema import ChangePasswordRequest, EditProfileRequest
+from schema import ChangePasswordRequest, EditProfileRequest, CreateQuery
 import pytz
 
 user_router = APIRouter(
@@ -29,12 +29,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                 detail="Your account is blocked or inactive. Please contact support."
             )
 
-        # ✅ Fetch ORM Login record
+        # Fetch ORM Login record
         login_obj = db.query(Login).filter(Login.username == form_data.username).first()
         if not login_obj:
             raise HTTPException(status_code=404, detail="Login record not found")
 
-        # ✅ Update session count and trigger last_login update
+        # Update session count and trigger last_login update
         ist = pytz.timezone("Asia/Kolkata")
         now = datetime.now(ist)
 
@@ -43,7 +43,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         db.commit()
         db.refresh(login_obj)
 
-        # ✅ Generate token
+        # Generate token
         access_token = create_access_token(data={"sub": user["username"]})
 
         return {
@@ -171,3 +171,47 @@ def edit_user(request: EditProfileRequest,
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@user_router.get("/support_requests")
+def get_support_requests(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    try:
+        user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")   
+        support_requests = db.query(Support_Request).filter(Support_Request.user_id == user.id).all()
+        return {"support_requests": [req.to_dict() for req in support_requests]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+@user_router.post("/raise_query")
+def raise_query(request: CreateQuery, 
+              db: Session = Depends(get_db), 
+              current_user=Depends(get_current_user)):
+    try:
+        user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        priority_enum = RequestPriority(request.priority)
+
+        new_query = Support_Request(
+            user_id=user.id,
+            title=request.title,
+            description=request.description,
+            priority=priority_enum,
+            status="open",
+        )
+
+        db.add(new_query)
+        db.commit()
+        db.refresh(new_query)
+
+        return {
+            "message": "Support request created successfully",
+            "support_request": new_query.to_dict()
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+

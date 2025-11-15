@@ -15,14 +15,30 @@ export const LoginPage = ({ onNavigateToRegister }: LoginPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
+  const [error, setError] = useState('');
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     try {
       await login(email, password);
     } catch (error) {
       console.error('Login failed:', error);
+      // Backend-mapped error messages
+      const msg = error.message || "Login failed";
+
+      if (msg.includes("Incorrect username or password")) {
+        setError("Incorrect email or password.");
+      }
+      else if (msg.includes("blocked") || msg.includes("inactive")) {
+        setError("Your account is blocked or inactive. Please contact support.");
+      }
+      else if (msg.includes("Login record not found")) {
+        setError("Your login data is invalid. Contact support.");
+      }
+      else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -84,18 +100,20 @@ export const LoginPage = ({ onNavigateToRegister }: LoginPageProps) => {
             </Button>
           </form>
           <div className="mt-6 text-center">
-            <p className="text-sm text-teal-600">
+          {error && (
+              <p className="text-sm text-red-600 text-center">
+                {error}
+              </p>
+            )}
+            <p className="mt-3 text-sm text-teal-600">
               Don't have an account?{' '}
               <button
                 onClick={onNavigateToRegister}
-                className="text-teal-700 hover:text-teal-900 underline"
-              >
+                className="text-teal-700 hover:text-teal-900 underline">
                 Sign up
               </button>
             </p>
-            <p className="mt-4 text-xs text-teal-500">
-              Demo: Use admin@mindcare.com for admin view
-            </p>
+            
           </div>
         </CardContent>
       </Card>
