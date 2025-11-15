@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import *
 from extensions import get_db
-from schema import ChangePasswordRequest
+from schema import ChangePasswordRequest, EditProfileRequest
 import pytz
 
 user_router = APIRouter(
@@ -139,3 +139,35 @@ def change_password(
 @user_router.get("/me")
 def get_me(current_user=Depends(get_current_user)):
     return current_user
+
+@user_router.put("/edit_profile")
+def edit_user(request: EditProfileRequest, 
+              db: Session = Depends(get_db), 
+              current_user=Depends(get_current_user)):
+    try:
+        user = db.query(User).filter(User.id == current_user["id"]).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Split full name
+        name_parts = request.full_name.strip().split(" ", 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        # Update user fields
+        user.first_name = first_name
+        user.last_name = last_name
+        user.email = request.email
+        user.phone_number = request.phone
+
+        db.commit()
+        db.refresh(user)
+
+        return {
+            "message": "User updated successfully",
+            "user": user.to_dict()
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "cwd": "${workspaceFolder}/Backend",
+      "python": "${workspaceFolder}/Backend/venv/bin/python",
+      "args": [
+        "main:app",
+        "--reload"
+      ]
+    }
+  ]
+}

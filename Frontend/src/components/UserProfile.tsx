@@ -6,27 +6,34 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { User, Calendar, MessageSquare, Award, Heart, Smile, Meh, Frown, Laugh } from 'lucide-react';
+import { User, Calendar, MessageSquare, Award, Heart, Smile, Meh, Frown, Laugh, Edit, MessageCircleQuestion  } from 'lucide-react';
 
 export const UserProfile = () => {
-  const { user } = useAuth();
+
+  const { user, refreshUser } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isQueryDialogOpen, setIsQueryDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
     bio: '',
     phone: '',
   });
+  const [queryData, setQueryData] = useState({
+    title: '',
+    description: '',
+  });
 
   const stats = [
     { label: 'Total Sessions', value: user?.sessionsCount || 0, icon: MessageSquare, color: 'text-teal-500' },
-    { label: 'Days Active', value: 45, icon: Calendar, color: 'text-cyan-500' },
+    { label: 'Days Active', value: user?.daysActive || 0, icon: Calendar, color: 'text-cyan-500' },
     { label: 'Achievements', value: 8, icon: Award, color: 'text-emerald-500' },
   ];
 
   const getMoodIcon = (mood: string) => {
-    switch(mood.toLowerCase()) {
+    switch (mood.toLowerCase()) {
       case 'great':
         return <Laugh className="w-6 h-6 text-white" />;
       case 'good':
@@ -54,6 +61,16 @@ export const UserProfile = () => {
     { title: 'Sleep Quality', progress: 85, target: '7-8 hours/night' },
   ];
 
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -61,14 +78,40 @@ export const UserProfile = () => {
     });
   };
 
-  const handleSave = () => {
-    // Here you would typically update the user data in your backend/context
-    console.log('Saving profile:', formData);
-    setIsEditDialogOpen(false);
-    // You can add toast notification here for successful save
+  const handleEditSave = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://127.0.0.1:8000/api/v1/user/edit_profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          full_name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Update failed");
+      }
+
+      const data = await res.json();
+      console.log("Updated:", data);
+
+      setIsEditDialogOpen(false);
+      await refreshUser();
+
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
   };
 
-  const handleCancel = () => {
+  const handleEditCancel = () => {
     // Reset form data to original values
     setFormData({
       name: user?.name || '',
@@ -78,6 +121,47 @@ export const UserProfile = () => {
     });
     setIsEditDialogOpen(false);
   };
+
+const handleQuerySave = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://127.0.0.1:8000/api/v1/user/raise_query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: queryData.title,
+          description: queryData.description
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Update failed");
+      }
+
+      const data = await res.json();
+      console.log("Updated:", data);
+
+      setIsQueryDialogOpen(false);
+      await refreshUser();
+
+    } catch (error) {
+      console.error("Error updating query:", error);
+    }
+  };
+
+  const handleQueryCancel = () => {
+    // Reset form data to original values
+    setQueryData({
+      title: '',
+      description: ''
+    });
+    setIsQueryDialogOpen(false);
+  };  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-50 p-6">
@@ -93,18 +177,26 @@ export const UserProfile = () => {
               </Avatar>
               <div className="flex-1">
                 <h2 className="text-teal-900 mb-1">{user?.name}</h2>
-                <p className="text-sm text-teal-600">{user?.email}</p>
+                <p className="text-sm text-teal-600">{user?.email} | {user?.phone}</p>
                 <div className="flex items-center gap-2 mt-2 text-sm text-teal-500">
                   <Calendar className="w-4 h-4" />
-                  <span>Joined {user?.joinedDate}</span>
+                  <span>Joined on {formatDate(user?.joinedDate)}</span>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="border-teal-200 text-teal-700 hover:bg-teal-50"
                 onClick={() => setIsEditDialogOpen(true)}
               >
+                <Edit className="w-4 h-4" />
                 Edit Profile
+              </Button>
+              <Button
+                className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+                onClick={() => setIsQueryDialogOpen(true)}
+              >
+                <MessageCircleQuestion className="w-4 h-4" />
+                Raise Query
               </Button>
             </div>
           </CardContent>
@@ -162,7 +254,7 @@ export const UserProfile = () => {
             <div className="grid grid-cols-5 gap-3">
               {moodData.map((data, index) => (
                 <div key={index} className="text-center">
-                  <div 
+                  <div
                     className="w-full h-24 bg-gradient-to-t from-teal-500 to-cyan-400 rounded-lg mb-2 flex flex-col items-center justify-center gap-1"
                     style={{ opacity: data.score / 100 }}
                   >
@@ -229,17 +321,61 @@ export const UserProfile = () => {
                 placeholder="Enter your phone number"
               />
             </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleEditCancel}
+              className="border-teal-200 text-teal-700 hover:bg-teal-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleEditSave}
+              className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white"
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isQueryDialogOpen} onOpenChange={setIsQueryDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white border-teal-200">
+          <DialogHeader>
+            <DialogTitle className="text-teal-900">Raise Query</DialogTitle>
+            <DialogDescription className="text-teal-600">
+              Submit your queries or issues here. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="bio" className="text-teal-900">
-                Bio
+              <Label htmlFor="title" className="text-teal-900">
+                Title
               </Label>
               <Input
-                id="bio"
-                name="bio"
-                value={formData.bio}
+                id="title"
+                name="title"
+                value={queryData.title}
                 onChange={handleInputChange}
                 className="border-teal-200 focus:border-teal-500 focus:ring-teal-500"
-                placeholder="Tell us about yourself"
+                placeholder="Enter query title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-teal-900">
+                Description
+              </Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={queryData.description}
+                className="border-teal-200 focus:border-teal-500 focus:ring-teal-500"
+                placeholder="Enter query description"
+                rows={3}
               />
             </div>
           </div>
@@ -247,14 +383,14 @@ export const UserProfile = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={handleCancel}
+              onClick={handleQueryCancel}
               className="border-teal-200 text-teal-700 hover:bg-teal-50"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              onClick={handleSave}
+              onClick={handleQuerySave}
               className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white"
             >
               Save Changes

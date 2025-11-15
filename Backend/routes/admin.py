@@ -97,6 +97,7 @@ def get_all_users(db: Session = Depends(get_db), user=Depends(get_current_user))
             "id": u.id,
             "name": u.first_name + (f" {u.last_name}" if u.last_name else ""),
             "email": u.email,
+            "phone": u.phone_number,
             "status": u.user_status.value,
             "sessions": login.session_count if login else 0,
             "joinedDate": format_joined_date(u.created_at),

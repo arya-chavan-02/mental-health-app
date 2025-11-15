@@ -350,10 +350,10 @@ export const AdminProfile = () => {
                     <CardTitle className="text-teal-900">User Management</CardTitle>
                     <CardDescription className="text-teal-600">View and manage all platform users</CardDescription>
                   </div>
-                  <Button className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600">
+                  {/* <Button className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600">
                     <Users className="w-4 h-4 mr-2" />
                     Add User
-                  </Button>
+                  </Button> */}
                 </div>
               </CardHeader>
               <CardContent>
@@ -395,7 +395,7 @@ export const AdminProfile = () => {
                           <div className="flex items-center gap-4 mt-1 text-sm text-teal-600">
                             <span className="flex items-center gap-1">
                               <Mail className="w-3 h-3" />
-                              {userData.email}
+                              {userData.email} | {userData.phone}
                             </span>
                             <span>{userData.sessions} sessions</span>
                             <span>Joined {userData.joinedDate}</span>

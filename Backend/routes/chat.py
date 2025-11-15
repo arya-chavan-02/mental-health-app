@@ -29,7 +29,7 @@ async def chat_with_gemini(request: ChatRequest, db: Session = Depends(get_db), 
     else:
         session_uuid = str(uuid.uuid4())
         session_obj = ChatSession(
-            user_id=current_user.id,
+            user_id=current_user['id'],
             session_uuid=session_uuid,
             created_at=datetime.utcnow(),
             title=None  # title will be generated later

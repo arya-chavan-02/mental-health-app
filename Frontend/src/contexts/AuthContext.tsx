@@ -6,6 +6,11 @@ interface User {
   username: string;
   role: 'user' | 'admin';
   name?: string;
+  sessionsCount?: number;
+  joinedDate?: string;
+  lastLogin?: string;
+  phone?: string | null;
+  daysActive?: number;
 }
 
 interface AuthContextType {
@@ -13,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,6 +61,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: data.email || data.username,
           username: data.username,
           role: normalizedRole,
+          name: `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim(),
+          sessionsCount: data.session_count || 0,
+          joinedDate: data.user.created_at,
+          lastLogin: data.last_login,
+          phone: data.user.phone_number,
+          daysActive: data.days_active,
         });
       } catch (error) {
         console.error("Session restore failed:", error);
@@ -105,6 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         username: data.user.username,
         role: normalizedRole,
         name: `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim(),
+        sessionsCount: data.session_count || 0,
+        joinedDate: data.user.created_at,
+        lastLogin: data.last_login,
+        phone: data.user.phone_number,
+        daysActive: data.days_active,
       };
 
       setUser(userData);
@@ -151,10 +168,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/user/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to refresh user");
+
+      const data = await res.json();
+
+      const rawRole =
+        typeof data.role === "string"
+          ? data.role
+          : data.role?.name || "user";
+
+      const normalizedRole = rawRole.toLowerCase().includes("admin")
+        ? "admin"
+        : "user";
+
+      setUser({
+        id: data.id.toString(),
+        email: data.email || data.username,
+        username: data.username,
+        role: normalizedRole,
+        name: `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim(),
+        sessionsCount: data.session_count || 0,
+        joinedDate: data.user.created_at,
+        lastLogin: data.last_login,
+        phone: data.user.phone_number,
+        daysActive: data.days_active,
+      });
+    } catch (err) {
+      console.error("refreshUser failed:", err);
+    }
+  };
+
+
   if (loading) return <div>Loading...</div>;
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -81,10 +81,10 @@ export const ChatbotPage = ({ onNavigateToProfile }: ChatbotPageProps) => {
   // ----------------------------
   // LOAD ALL SESSIONS FROM DB ON MOUNT
   // ----------------------------
+  const token = localStorage.getItem("token");
   useEffect(() => {
     const loadSessions = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await fetch(`${API_URL}/sessions`, {
           headers: {
             "Content-Type": "application/json",
@@ -197,7 +197,9 @@ export const ChatbotPage = ({ onNavigateToProfile }: ChatbotPageProps) => {
 
       const res = await fetch(`${API_URL}/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+         },
         body: JSON.stringify({
           user_message: userText,
           session_id: sessionToSend
