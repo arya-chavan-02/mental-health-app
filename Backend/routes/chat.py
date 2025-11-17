@@ -7,7 +7,7 @@ from datetime import datetime
 from extensions import get_db
 from models import ChatSession, ChatMessage, User
 from schema import ChatRequest, ChatSessionOut
-import utils
+from utils import *
 from auth import get_current_user
 
 load_dotenv()
@@ -40,8 +40,32 @@ async def chat_with_gemini(request: ChatRequest, db: Session = Depends(get_db), 
 
     session_id = session_obj.session_uuid
 
+    if is_irrelevant_query(user_text):
+        bot_reply = (
+            "I may not be able to help with recipes, technical tasks, or unrelated topics, "
+            "but I'm here to support your emotional well-being. "
+            "How are you feeling today?"
+        )
+
+        db.add_all([
+            ChatMessage(session_id=session_obj.id, role="user", content=user_text),
+            ChatMessage(session_id=session_obj.id, role="bot", content=bot_reply)
+        ])
+
+        if not session_obj.title:
+            session_obj.title = "Conversation"
+            db.add(session_obj)
+
+        db.commit()
+
+        return {
+            "session_id": session_id,
+            "reply": bot_reply,
+            "title": session_obj.title
+        }
+
     # 🔹 Detect distress
-    if utils.detect_distress(user_text):
+    if detect_distress(user_text):
         bot_reply = (
             "It sounds like you're going through a really hard time. "
             "You’re not alone. Please consider calling someone you trust or "
@@ -68,7 +92,7 @@ async def chat_with_gemini(request: ChatRequest, db: Session = Depends(get_db), 
         }
 
     # 🔹 Detect emotion
-    emotion = utils.detect_emotion(user_text)
+    emotion = detect_emotion(user_text)
 
     # 🔹 Retrieve last messages for context
     last_msgs = db.query(ChatMessage).filter_by(session_id=session_obj.id)\
