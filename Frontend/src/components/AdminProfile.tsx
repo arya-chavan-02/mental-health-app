@@ -571,13 +571,6 @@ export const AdminProfile = () => {
                             {request.description}
                           </p>
                           <div className="flex gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
-                            >
-                              <MessageSquare className="w-3 h-3 mr-1" />
-                              Respond
-                            </Button>
                             {request.status !== "resolved" && (
                               <Button
                                 size="sm"
